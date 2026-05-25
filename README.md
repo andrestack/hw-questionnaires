@@ -1,36 +1,216 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Hinterland Web — Questionnaires
 
-## Getting Started
+Multi-step client onboarding questionnaires for Hinterland Web. Two forms, one codebase, shared design system.
 
-First, run the development server:
+**Live URLs:**
+- `start.hinterlandweb.com` — Website Design Onboarding
+- `audit.hinterlandweb.com` — AIOS Pre-Audit
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+---
+
+## What This Is
+
+This repo houses two client-facing questionnaires that collect structured information before discovery calls:
+
+1. **Website Onboarding** — For website design leads. Captures business context, visual direction, content needs, budget, and timeline.
+2. **AIOS Pre-Audit** — For AIOS audit clients. Maps business operations, tools, pain points, and automation opportunities.
+
+Both forms share identical UI patterns (6 cards × 3 questions, CSS View Transitions, step indicator) but collect different data. Results write to separate tabs in a shared Google Sheet.
+
+---
+
+## Architecture
+
+### Feature-Based Folder Structure
+
+```
+hw-questionnaires/
+├── app/                          # Next.js App Router (entry points only)
+│   ├── (questionnaires)/         # Route group — shared questionnaire shell
+│   │   ├── layout.tsx            # Minimal layout (no nav, blobs, centered)
+│   │   ├── start/
+│   │   │   └── page.tsx          # Website onboarding route
+│   │   └── audit/
+│   │       └── page.tsx          # AIOS audit route
+│   ├── layout.tsx                # Root layout (Raleway font, metadata)
+│   ├── page.tsx                  # Root landing (private link portal)
+│   └── globals.css               # Brand colors, dark mode, blob utilities
+├── features/
+│   └── questionnaires/           # Domain-specific logic
+│       ├── components/           # Shared UI components
+│       │   ├── questionnaire-shell.tsx   # View transitions + navigation
+│       │   ├── card.tsx                  # Card wrapper
+│       │   ├── step-indicator.tsx        # Progress dots
+│       │   ├── chip-select.tsx           # Multi-select chips
+│       │   ├── radio-group.tsx           # Styled radios
+│       │   ├── text-field.tsx            # Text input
+│       │   ├── textarea-field.tsx        # Textarea
+│       │   ├── confirmation-screen.tsx   # Success state
+│       │   ├── start-questionnaire.tsx   # Website form config
+│       │   └── audit-questionnaire.tsx   # AIOS form config
+│       ├── lib/
+│       │   ├── types.ts          # Shared TypeScript types
+│       │   ├── start-schema.ts   # Zod schema (website)
+│       │   └── audit-schema.ts   # Zod schema (AIOS)
+│       └── server/
+│           ├── submit-start.ts   # Server action → Sheet + n8n
+│           └── submit-audit.ts   # Server action → Sheet + n8n
+├── lib/                          # Global utilities
+│   ├── utils.ts                  # cn() helper
+│   ├── sheetsandbox.ts           # SheetSandbox API client
+│   └── notify.ts                 # n8n webhook client
+├── middleware.ts                 # Subdomain → route rewriting
+├── docs/                         # PRDs and specifications
+├── reference/                    # Cross-project reference (brand, stack, ICPs)
+├── AGENTS.md                     # AI coding agent instructions
+└── DESIGN.md                     # Visual design system
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### Key Architectural Decisions
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+**Single Repo, Multiple Subdomains**
+- One Next.js app serves both questionnaires
+- `middleware.ts` rewrites `start.hinterlandweb.com` → `/start` and `audit.hinterlandweb.com` → `/audit`
+- Shared components mean design changes apply to both forms instantly
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+**Server Components by Default**
+- Page components (`page.tsx`) are Server Components
+- Form logic lives in Client Components (`questionnaire-shell.tsx`, `*-questionnaire.tsx`)
+- Data submission happens via Server Actions — no API routes needed
 
-## Learn More
+**Schema-First Forms**
+- Each questionnaire has a Zod schema defining all fields across 6 cards
+- Per-card validation triggered on "Next" button (not on blur)
+- React Hook Form with `zodResolver` — no manual state management
 
-To learn more about Next.js, take a look at the following resources:
+**Submission Flow**
+```
+Client fills form
+       ↓
+React Hook Form validates (Zod)
+       ↓
+Server Action
+       ↓
+Promise.all([
+  POST → SheetSandbox → Google Sheet tab
+  POST → n8n webhook → emails (André + client auto-reply)
+])
+       ↓
+Confirmation screen (no redirect)
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+**Error Handling**
+- SheetSandbox failure → inline error, allow retry, form state preserved
+- Webhook failure → logged but submission succeeds (don't lose data)
+- Validation failure → blocks "Next" button, shows field-level errors
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+---
 
-## Deploy on Vercel
+## Tech Stack
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+| Layer | Technology |
+|-------|------------|
+| Framework | Next.js 16 (App Router) |
+| Language | TypeScript (strict) |
+| Styling | Tailwind CSS v4 |
+| Forms | React Hook Form + Zod |
+| Components | Custom (no shadcn/ui for forms — custom design) |
+| Transitions | CSS View Transitions API |
+| Data Storage | SheetSandbox → Google Sheets |
+| Notifications | n8n webhooks |
+| Hosting | Vercel |
+| Font | Raleway (Google Fonts) |
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+---
+
+## Design System
+
+**Colors:**
+- Primary: `#42B3E8` (sky blue) — CTAs, highlights
+- Secondary: `#143144` (dark navy) — text on light
+- Tertiary: `#D8E5CF` (sage green) — backgrounds
+
+**Theme:**
+- Light mode: sage green background, navy text
+- Dark mode: navy background, sage green text
+- Primary blue constant in both modes
+
+**Blobs:** CSS `div` elements (absolute, blurred, semi-transparent) creating ambient glow
+
+See [DESIGN.md](./DESIGN.md) for full specifications.
+
+---
+
+## Environment Variables
+
+Create `.env.local`:
+
+```
+SHEETSANDBOX_TOKEN=        # From sheetsandbox.com dashboard
+N8N_WEBHOOK_URL=           # n8n webhook for website form
+N8N_WEBHOOK_URL_AIOS=      # n8n webhook for AIOS audit form
+```
+
+---
+
+## Running Locally
+
+```bash
+npm install
+npm run dev
+```
+
+Visit:
+- `http://localhost:3000/start` — Website onboarding
+- `http://localhost:3000/audit` — AIOS audit
+- `http://localhost:3000` — Root landing
+
+---
+
+## Google Sheet Setup
+
+Create one Google Sheet with two tabs:
+
+**Tab: `Website`**
+```
+businessName, businessDescription, currentWebsite, primaryGoal, desiredFeelings, turnOffs, likedWebsites, styleWords, avoid, neededPages, brandingStatus, photoStatus, budget, timeline, additionalInfo, name, email, phone, submittedAt
+```
+
+**Tab: `AIOS`**
+```
+businessName, businessDescription, teamSize, clientJourney, timeSink, adminHours, clientCommunication, proposalsQuotes, invoicing, jobManagement, scheduling, fileStorage, otherTools, toolFrustrations, automationAttempts, topFrustrations, fixOvernight, repetitiveTasks, techComfort, successOutcome, anythingElse, fullName, email, phone, submittedAt
+```
+
+---
+
+## Deployment
+
+1. Push to GitHub (`main` branch)
+2. Import repo in Vercel dashboard
+3. Add environment variables
+4. Configure custom domains:
+   - `start.hinterlandweb.com`
+   - `audit.hinterlandweb.com`
+5. Deploy
+
+---
+
+## Documentation
+
+- [AGENTS.md](./AGENTS.md) — Coding rules and conventions for AI agents
+- [DESIGN.md](./DESIGN.md) — Visual design system (colors, typography, blobs)
+- [docs/](./docs/) — PRDs for both questionnaires
+- [reference/](./reference/) — Cross-project reference (brand guidelines, tech stack, ICPs)
+
+---
+
+## Verification Checklist
+
+- [ ] All 6 cards transition correctly
+- [ ] Validation blocks on missing required fields
+- [ ] Back button preserves state
+- [ ] Submit → row appears in correct Google Sheet tab
+- [ ] Submit → André receives formatted email
+- [ ] Submit → client receives auto-reply
+- [ ] Mobile usability (375px width)
+- [ ] Subdomain routing works in production
