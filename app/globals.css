@@ -1,26 +1,136 @@
 @import "tailwindcss";
+@import "tw-animate-css";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@custom-variant dark (&:is(.dark *));
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-raleway);
+  --color-primary: #42B3E8;
+  --color-secondary: #143144;
+  --color-tertiary: #D8E5CF;
+  --color-box-bg: var(--box-bg);
+  --color-box-border: var(--box-border);
+  --color-heading-1: var(--heading-1);
+  --color-heading-2: var(--heading-2);
+  --color-heading-3: var(--heading-3);
+  --color-body-text: var(--body-text);
+  --color-deep-navy: #172554;
+  --color-dark-secondary: #111827;
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) + 12px);
+  --radius-4xl: calc(var(--radius) + 16px);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+:root {
+  --radius: 0.625rem;
+  --background: #D8E5CF;
+  --foreground: #143144;
+  --box-bg: #D8E5CF;
+  --box-border: #143144;
+  --heading-1: #143144;
+  --heading-2: #143144;
+  --heading-3: #143144;
+  --body-text: #374151;
+  --card: #D8E5CF;
+  --card-foreground: #143144;
+  --popover: #D8E5CF;
+  --popover-foreground: #143144;
+  --primary: #42B3E8;
+  --primary-foreground: #FFFFFF;
+  --secondary: #143144;
+  --secondary-foreground: #D8E5CF;
+  --muted: #D8E5CF;
+  --muted-foreground: #374151;
+  --accent: #42B3E8;
+  --accent-foreground: #FFFFFF;
+  --destructive: #EF4444;
+  --border: #143144;
+  --input: #143144;
+  --ring: #42B3E8;
+}
+
+.dark {
+  --background: #143144;
+  --foreground: #D8E5CF;
+  --box-bg: #111827;
+  --box-border: rgba(243, 244, 246, 0.1);
+  --heading-1: #D8E5CF;
+  --heading-2: #D8E5CF;
+  --heading-3: #D1D5DB;
+  --body-text: #D1D5DB;
+  --card: #111827;
+  --card-foreground: #D8E5CF;
+  --popover: #111827;
+  --popover-foreground: #D8E5CF;
+  --primary: #42B3E8;
+  --primary-foreground: #FFFFFF;
+  --secondary: #D8E5CF;
+  --secondary-foreground: #143144;
+  --muted: #111827;
+  --muted-foreground: #D1D5DB;
+  --accent: #42B3E8;
+  --accent-foreground: #FFFFFF;
+  --destructive: #EF4444;
+  --border: rgba(243, 244, 246, 0.1);
+  --input: rgba(243, 244, 246, 0.1);
+  --ring: #42B3E8;
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+    outline-color: color-mix(in oklab, var(--ring) 50%, transparent);
+  }
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* Blob utilities */
+.blob {
+  position: absolute;
+  pointer-events: none;
+}
+
+.blob-green {
+  background-color: #4ADE80;
+  filter: blur(24px);
+  opacity: 0.6;
+  border-radius: 1.5rem;
+}
+
+.blob-blue {
+  background-color: #42B3E8;
+  filter: blur(24px);
+  opacity: 0.8;
+  border-radius: 1.5rem;
+}
+
+.blob-gradient-tr {
+  background: linear-gradient(to top right, #42B3E8, #4ADE80);
+  filter: blur(40px);
+  opacity: 0.4;
+  border-radius: 9999px;
+}
+
+.blob-gradient-br {
+  background: linear-gradient(to bottom right, #42B3E8, #FB923C);
+  filter: blur(64px);
+  opacity: 0.5;
+}
+
+/* View transition support */
+@supports (view-transition-name: none) {
+  ::view-transition-old(card),
+  ::view-transition-new(card) {
+    animation-duration: 300ms;
+    animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  }
 }
