@@ -25,6 +25,13 @@ export function middleware(request: NextRequest) {
     }
   }
 
+  if (hostname === "blueprint.hinterlandweb.com") {
+    if (url.pathname === "/") {
+      url.pathname = "/blueprint";
+      return NextResponse.rewrite(url);
+    }
+  }
+
   return NextResponse.next();
 }
 

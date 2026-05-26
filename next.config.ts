@@ -25,6 +25,17 @@ const nextConfig: NextConfig = {
         destination: "/audit",
         permanent: false,
       },
+      {
+        source: "/",
+        has: [
+          {
+            type: "host",
+            value: "blueprint.hinterlandweb.com",
+          },
+        ],
+        destination: "/blueprint",
+        permanent: false,
+      },
     ];
   },
 };
