@@ -4,34 +4,31 @@ This document explains how to set up the n8n workflows for the Hinterland Web qu
 
 ## Architecture Overview
 
-All three forms now submit to n8n webhooks instead of directly to SheetSandbox:
+All three forms submit to n8n webhooks:
 
 ```
 Form Submission
        ↓
 Next.js Server Action
        ↓
-POST to n8n webhook (with authentication)
+POST to n8n webhook
        ↓
 n8n Workflow:
-  1. Verify webhook secret (optional)
-  2. Process/parse form data
-  3. Call Claude API (Blueprint only)
-  4. Save to Google Sheet
-  5. Send emails (confirmation to client, notification to André)
-  6. Return success response
+  1. Process/parse form data
+  2. Call Claude API (Blueprint only)
+  3. Save to Google Sheet
+  4. Send emails (confirmation to client, notification to André)
+  5. Return success response
 ```
 
 ## Files Created
 
-### Next.js Code Changes
-- ✅ `lib/webhook-auth.ts` — Authenticated webhook utility
-- ✅ `features/questionnaires/server/submit-start.ts` — Updated (webhook only)
-- ✅ `features/questionnaires/server/submit-audit.ts` — Updated (webhook only)
-- ✅ `features/questionnaires/server/submit-blueprint.ts` — Updated (webhook only)
-- ✅ `.env.example` — New environment variables
-- 🗑️ `lib/sheetsandbox.ts` — Deleted (no longer needed)
-- 🗑️ `lib/notify.ts` — Deleted (replaced by webhook-auth.ts)
+### Next.js Code
+- ✅ `lib/webhook.ts` — Simple webhook utility
+- ✅ `features/questionnaires/server/submit-start.ts` — Website form submission
+- ✅ `features/questionnaires/server/submit-audit.ts` — AIOS form submission
+- ✅ `features/questionnaires/server/submit-blueprint.ts` — Blueprint form submission
+- ✅ `.env.example` — Environment variables
 
 ### n8n Workflow JSON Files
 - ✅ `n8n-workflow-website.json` — Website questionnaire workflow
@@ -51,9 +48,6 @@ Create/update your `.env.local` file:
 N8N_WEBHOOK_URL=https://your-n8n-instance.com/webhook/website-form
 N8N_WEBHOOK_URL_AIOS=https://your-n8n-instance.com/webhook/aios-form
 N8N_WEBHOOK_URL_BLUEPRINT=https://your-n8n-instance.com/webhook/blueprint-form
-
-# Optional but recommended: Webhook authentication
-N8N_WEBHOOK_SECRET=your-secure-random-string-here
 ```
 
 ### 2. Set Up Google Sheet
@@ -113,7 +107,6 @@ In n8n, you need to set up these credentials:
 In n8n Settings → Variables, add:
 
 ```
-N8N_WEBHOOK_SECRET=your-secure-random-string-here
 GOOGLE_SHEET_ID=your-google-sheet-id
 FROM_EMAIL=noreply@hinterlandweb.com
 ```
@@ -150,7 +143,6 @@ In the Blueprint workflow, update the email template:
 ```bash
 curl -X POST https://your-n8n-instance.com/webhook/website-form \
   -H "Content-Type: application/json" \
-  -H "X-Webhook-Secret: your-secret" \
   -d '{
     "formType": "website",
     "submittedAt": "2026-06-01T14:30:00.000Z",
@@ -179,7 +171,6 @@ curl -X POST https://your-n8n-instance.com/webhook/website-form \
 ```bash
 curl -X POST https://your-n8n-instance.com/webhook/aios-form \
   -H "Content-Type: application/json" \
-  -H "X-Webhook-Secret: your-secret" \
   -d '{
     "formType": "aios",
     "submittedAt": "2026-06-01T14:30:00.000Z",
@@ -214,7 +205,6 @@ curl -X POST https://your-n8n-instance.com/webhook/aios-form \
 ```bash
 curl -X POST https://your-n8n-instance.com/webhook/blueprint-form \
   -H "Content-Type: application/json" \
-  -H "X-Webhook-Secret: your-secret" \
   -d '{
     "formType": "blueprint",
     "submittedAt": "2026-06-01T14:30:00.000Z",
@@ -237,9 +227,10 @@ curl -X POST https://your-n8n-instance.com/webhook/blueprint-form \
 
 ## Troubleshooting
 
-### Webhook returns 401 Unauthorized
-- Check that `N8N_WEBHOOK_SECRET` matches in both Next.js and n8n
-- Verify the `X-Webhook-Secret` header is being sent
+### Webhook not receiving data
+- Check that the webhook URL is correct
+- Verify the n8n workflow is activated (toggle should be green)
+- Check n8n execution logs for incoming requests
 
 ### Google Sheet not updating
 - Check credential permissions (needs write access)
@@ -276,21 +267,9 @@ Arrays are sent as JSON arrays (e.g., `["Trusted", "Professional"]`). The n8n wo
 
 ## Security Notes
 
-1. **Keep `N8N_WEBHOOK_SECRET` secure** — use a long random string
+1. **Keep webhook URLs private** — don't commit them to public repos
 2. **HTTPS only** — never use webhook URLs over HTTP
 3. **Rate limiting** — consider adding rate limiting in n8n for production
-4. **IP whitelist** — optionally restrict webhook access to your Vercel IPs
-
----
-
-## Migration from SheetSandbox
-
-If you were previously using SheetSandbox:
-
-1. ✅ All Next.js code has been updated (no more SheetSandbox calls)
-2. ✅ Delete the old `SHEETSANDBOX_TOKEN` environment variable
-3. 🔄 Your existing Google Sheet can be reused — just verify column headers match
-4. 🔄 Old data remains intact — new submissions go through n8n
 
 ---
 

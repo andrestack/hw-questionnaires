@@ -17,7 +17,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Verify webhook secret if configured\nconst secret = $env.N8N_WEBHOOK_SECRET;\nif (secret) {\n  const receivedSecret = $input.headers['x-webhook-secret'];\n  if (receivedSecret !== secret) {\n    return [{ json: { error: 'Unauthorized' } }];\n  }\n}\n\n// Extract body data\nconst body = $input.body;\n\n// Tech comfort mapping for display\nconst techComfortMap = {\n  '1': '1 — I avoid it where I can',\n  '2': '2 — I use what I have to',\n  '3': '3 — Comfortable with everyday tools',\n  '4': '4 — I enjoy learning new tools',\n  '5': '5 — I love technology and adopt it early'\n};\n\nconst techComfortLabel = techComfortMap[body.techComfort?.charAt(0)] || body.techComfort;\n\nreturn [{\n  json: {\n    ...body,\n    techComfortLabel\n  }\n}];"
+        "jsCode": "// Extract body data from webhook\nconst items = $input.all();\nconst body = items[0].json;\n\n// Tech comfort mapping for display\nconst techComfortMap = {\n  '1': '1 — I avoid it where I can',\n  '2': '2 — I use what I have to',\n  '3': '3 — Comfortable with everyday tools',\n  '4': '4 — I enjoy learning new tools',\n  '5': '5 — I love technology and adopt it early'\n};\n\nconst techComfortLabel = techComfortMap[body.techComfort?.charAt(0)] || body.techComfort;\n\nreturn [{\n  json: {\n    ...body,\n    techComfortLabel\n  }\n}];"
       },
       "id": "prepare-data",
       "name": "Prepare Data",

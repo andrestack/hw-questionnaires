@@ -66,7 +66,7 @@ hw-questionnaires/
 │           └── submit-blueprint.ts # Server action → n8n webhook
 ├── lib/                          # Global utilities
 │   ├── utils.ts                  # cn() helper
-│   └── webhook-auth.ts           # Authenticated webhook client
+│   └── webhook.ts                # Webhook client
 ├── middleware.ts                 # Subdomain → route rewriting
 ├── docs/                         # PRDs and specifications
 ├── n8n-workflow-website.json     # n8n workflow for website form
@@ -103,7 +103,7 @@ React Hook Form validates (Zod)
        ↓
 Server Action
        ↓
-POST → n8n webhook (with auth)
+POST → n8n webhook
        ↓
 n8n Workflow:
   1. Process/parse form data
@@ -164,7 +164,6 @@ Create `.env.local`:
 N8N_WEBHOOK_URL=           # n8n webhook for website form
 N8N_WEBHOOK_URL_AIOS=      # n8n webhook for AIOS audit form
 N8N_WEBHOOK_URL_BLUEPRINT= # n8n webhook for Blueprint form
-N8N_WEBHOOK_SECRET=        # Optional: shared secret for webhook auth
 ```
 
 See [N8N_SETUP.md](./N8N_SETUP.md) for complete setup instructions.
@@ -243,4 +242,3 @@ Data is written to Google Sheets via n8n workflows, not directly from Next.js.
 - [ ] Blueprint → Claude AI generates personalized recommendations
 - [ ] Mobile usability (375px width)
 - [ ] Subdomain routing works in production
-- [ ] Webhook authentication working (if N8N_WEBHOOK_SECRET configured)

@@ -12,10 +12,10 @@ interface WebhookResponse {
 }
 
 /**
- * Sends authenticated webhook to n8n with form data
+ * Sends webhook to n8n with form data
  * Includes formType discriminator and timestamp for tracking
  */
-export async function sendAuthenticatedWebhook(
+export async function sendWebhook(
   url: string,
   formType: string,
   data: Record<string, unknown>
@@ -24,8 +24,6 @@ export async function sendAuthenticatedWebhook(
     return { success: false, error: "Webhook URL not configured" };
   }
 
-  const secret = process.env.N8N_WEBHOOK_SECRET;
-
   // Enrich payload with metadata
   const payload: WebhookPayload = {
     formType,
@@ -33,19 +31,12 @@ export async function sendAuthenticatedWebhook(
     ...data,
   };
 
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-  };
-
-  // Add authentication header if secret is configured
-  if (secret) {
-    headers["X-Webhook-Secret"] = secret;
-  }
-
   try {
     const response = await fetch(url, {
       method: "POST",
-      headers,
+      headers: {
+        "Content-Type": "application/json",
+      },
       body: JSON.stringify(payload),
     });
 

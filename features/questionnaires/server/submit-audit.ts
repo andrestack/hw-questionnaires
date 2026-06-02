@@ -1,6 +1,6 @@
 "use server";
 
-import { sendAuthenticatedWebhook } from "@/lib/webhook-auth";
+import { sendWebhook } from "@/lib/webhook";
 import { type SubmitResult } from "../lib/types";
 
 export async function submitAudit(data: Record<string, unknown>): Promise<SubmitResult> {
@@ -10,7 +10,7 @@ export async function submitAudit(data: Record<string, unknown>): Promise<Submit
     return { success: false, error: "N8N_WEBHOOK_URL_AIOS not configured" };
   }
 
-  const result = await sendAuthenticatedWebhook(webhookUrl, "aios", data);
+  const result = await sendWebhook(webhookUrl, "aios", data);
 
   if (!result.success) {
     return { success: false, error: result.error };

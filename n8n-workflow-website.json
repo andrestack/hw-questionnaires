@@ -17,7 +17,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Verify webhook secret if configured\nconst secret = $env.N8N_WEBHOOK_SECRET;\nif (secret) {\n  const receivedSecret = $input.headers['x-webhook-secret'];\n  if (receivedSecret !== secret) {\n    return [{ json: { error: 'Unauthorized' } }];\n  }\n}\n\n// Extract body data\nconst body = $input.body;\n\n// Convert arrays to comma-separated strings for Google Sheets\nconst formatArray = (arr) => {\n  if (!arr || !Array.isArray(arr)) return '';\n  return arr.join(', ');\n};\n\n// Determine qualification tag based on budget\nlet qualificationTag = '';\nif (body.budget === 'Under $3,000') {\n  qualificationTag = 'low-budget';\n}\n\nreturn [{\n  json: {\n    ...body,\n    desiredFeelings: formatArray(body.desiredFeelings),\n    styleWords: formatArray(body.styleWords),\n    neededPages: formatArray(body.neededPages),\n    qualificationTag\n  }\n}];"
+        "jsCode": "// Extract body data from webhook\nconst items = $input.all();\nconst body = items[0].json;\n\n// Convert arrays to comma-separated strings for Google Sheets\nconst formatArray = (arr) => {\n  if (!arr || !Array.isArray(arr)) return '';\n  return arr.join(', ');\n};\n\n// Determine qualification tag based on budget\nlet qualificationTag = '';\nif (body.budget === 'Under $3,000') {\n  qualificationTag = 'low-budget';\n}\n\nreturn [{\n  json: {\n    ...body,\n    desiredFeelings: formatArray(body.desiredFeelings),\n    styleWords: formatArray(body.styleWords),\n    neededPages: formatArray(body.neededPages),\n    qualificationTag\n  }\n}];"
       },
       "id": "prepare-data",
       "name": "Prepare Data",
