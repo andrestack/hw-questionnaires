@@ -1,0 +1,271 @@
+{
+  "name": "Blueprint Lead Magnet - Submission Handler",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "blueprint-form",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "webhookId": "blueprint-form"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Verify webhook secret if configured\nconst secret = $env.N8N_WEBHOOK_SECRET;\nif (secret) {\n  const receivedSecret = $input.headers['x-webhook-secret'];\n  if (receivedSecret !== secret) {\n    return [{ json: { error: 'Unauthorized' } }];\n  }\n}\n\n// Extract body data\nconst body = $input.body;\n\n// Convert arrays to comma-separated strings\nconst formatArray = (arr) => {\n  if (!arr || !Array.isArray(arr)) return '';\n  return arr.join(', ');\n};\n\n// High intent qualification logic\nconst teamSize = body.teamSize;\nconst adminHours = body.weeklyAdminHours;\nlet highIntentTag = false;\n\n// Parse team size\nconst teamSizeMap = {\n  'Just me': 1,\n  '2–5': 3,\n  '6–20': 10,\n  '20+': 25\n};\n\n// Parse admin hours (use middle of range)\nconst adminHoursMap = {\n  'Under 2 hours': 1,\n  '2–5 hours': 3.5,\n  '5–10 hours': 7.5,\n  '10–15 hours': 12.5,\n  '15+ hours (I feel this)': 17\n};\n\nconst teamSizeNum = teamSizeMap[teamSize] || 1;\nconst adminHoursNum = adminHoursMap[adminHours] || 0;\n\nif (teamSizeNum >= 6 && adminHoursNum >= 10) {\n  highIntentTag = true;\n}\n\nreturn [{\n  json: {\n    ...body,\n    repeatedTasks: formatArray(body.repeatedTasks),\n    tools: formatArray(body.tools),\n    highIntentTag,\n    teamSizeNum,\n    adminHoursNum\n  }\n}];"
+      },
+      "id": "prepare-data",
+      "name": "Prepare Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "options": {},
+        "requestMethod": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "body": "{\n  \"model\": \"claude-sonnet-4-20250514\",\n  \"max_tokens\": 2000,\n  \"system\": \"You are an automation strategist for small businesses in Australia.\\n\\nA business owner has just answered a short survey about their operations.\\nYour job is to analyse their answers and produce a personalised \\\"Automation Blueprint\\\" —\\n3 specific, realistic automation opportunities ranked by impact.\\n\\nRules:\\n- Be specific. Name the actual task, not a vague category.\\n- Prioritise quick wins. The #1 automation should be achievable in under a day.\\n- Match complexity honestly. Don't recommend complex solutions to simple problems.\\n- Speak plainly. No jargon. Write like you're talking to a busy tradie or small business owner.\\n- Each automation must include: a name, a one-line description, estimated hours saved per week,\\n  and a complexity rating (Simple / Intermediate / Advanced).\\n- Also include one \\\"quick win\\\" — something they could do this week manually to test the concept before automating.\\n\\nReturn valid JSON only. No explanation outside the JSON block.\\n\\nSchema:\\n{\\n  \\\"businessType\\\": \\\"string\\\",\\n  \\\"headline\\\": \\\"string (e.g. 'Here's where your time is going — and how to get it back')\\\",\\n  \\\"intro\\\": \\\"string (2-3 sentences, personal, based on their answers)\\\",\\n  \\\"automations\\\": [\\n    {\\n      \\\"rank\\\": 1,\\n      \\\"name\\\": \\\"string\\\",\\n      \\\"description\\\": \\\"string (1-2 sentences, specific to their situation)\\\",\\n      \\\"hoursSavedPerWeek\\\": \\\"string (e.g. '3–4 hours')\\\",\\n      \\\"complexity\\\": \\\"Simple | Intermediate | Advanced\\\",\\n      \\\"howItWorks\\\": \\\"string (1 sentence — the mechanic, plainly explained)\\\"\\n    },\\n    { \\\"rank\\\": 2, ... },\\n    { \\\"rank\\\": 3, ... }\\n  ],\\n  \\\"quickWin\\\": \\\"string (2-3 sentences — something they can try manually this week)\\\",\\n  \\\"closingLine\\\": \\\"string (1 sentence — warm, direct, not salesy)\\\"\\n}\",\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Business type: {{ $json.businessType }}\\nTeam size: {{ $json.teamSize }}\\nBiggest time drain: {{ $json.biggestTimeDrain }}\\nRepeated tasks: {{ $json.repeatedTasks }}\\nWeekly admin hours: {{ $json.weeklyAdminHours }}\\n5 hours back would mean: {{ $json.fiveHoursMeaning }}\\nCurrent tools: {{ $json.tools }}\\nTools integrated: {{ $json.toolsIntegrated }}\\nPrevious automation attempts: {{ $json.automationHistory }}\\nBusiness name: {{ $json.businessName }}\"\n    }\n  ]\n}"
+      },
+      "id": "claude-api",
+      "name": "Claude AI",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [650, 300],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "YOUR_ANTHROPIC_CREDENTIAL_ID",
+          "name": "Anthropic API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse Claude's response and extract JSON\nconst response = $input.json;\nconst content = response.content[0].text;\n\n// Extract JSON from response (handle markdown code blocks)\nlet jsonStr = content;\nif (content.includes('```json')) {\n  jsonStr = content.split('```json')[1].split('```')[0].trim();\n} else if (content.includes('```')) {\n  jsonStr = content.split('```')[1].split('```')[0].trim();\n}\n\ntry {\n  const blueprint = JSON.parse(jsonStr);\n  return [{\n    json: {\n      ...$input.json,\n      blueprint,\n      blueprintSentAt: new Date().toISOString()\n    }\n  }];\n} catch (e) {\n  // If JSON parsing fails, return error\n  return [{\n    json: {\n      ...$input.json,\n      blueprintError: true,\n      rawResponse: content\n    }\n  }];\n}"
+      },
+      "id": "parse-claude",
+      "name": "Parse Claude Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": "={{ $env.GOOGLE_SHEET_ID }}",
+        "sheetName": "Leads",
+        "columns": {
+          "columns": [
+            { "column": "submittedAt", "value": "={{ $json.submittedAt }}" },
+            { "column": "businessType", "value": "={{ $json.businessType }}" },
+            { "column": "teamSize", "value": "={{ $json.teamSize }}" },
+            { "column": "biggestTimeDrain", "value": "={{ $json.biggestTimeDrain }}" },
+            { "column": "repeatedTasks", "value": "={{ $json.repeatedTasks }}" },
+            { "column": "weeklyAdminHours", "value": "={{ $json.weeklyAdminHours }}" },
+            { "column": "fiveHoursMeaning", "value": "={{ $json.fiveHoursMeaning }}" },
+            { "column": "tools", "value": "={{ $json.tools }}" },
+            { "column": "toolsIntegrated", "value": "={{ $json.toolsIntegrated }}" },
+            { "column": "automationHistory", "value": "={{ $json.automationHistory }}" },
+            { "column": "firstName", "value": "={{ $json.firstName }}" },
+            { "column": "email", "value": "={{ $json.email }}" },
+            { "column": "businessName", "value": "={{ $json.businessName }}" },
+            { "column": "blueprintSentAt", "value": "={{ $json.blueprintSentAt }}" },
+            { "column": "automation1_name", "value": "={{ $json.blueprint.automations[0].name }}" },
+            { "column": "automation1_description", "value": "={{ $json.blueprint.automations[0].description }}" },
+            { "column": "automation1_hoursSaved", "value": "={{ $json.blueprint.automations[0].hoursSavedPerWeek }}" },
+            { "column": "automation1_complexity", "value": "={{ $json.blueprint.automations[0].complexity }}" },
+            { "column": "automation2_name", "value": "={{ $json.blueprint.automations[1].name }}" },
+            { "column": "automation2_description", "value": "={{ $json.blueprint.automations[1].description }}" },
+            { "column": "automation2_hoursSaved", "value": "={{ $json.blueprint.automations[1].hoursSavedPerWeek }}" },
+            { "column": "automation2_complexity", "value": "={{ $json.blueprint.automations[1].complexity }}" },
+            { "column": "automation3_name", "value": "={{ $json.blueprint.automations[2].name }}" },
+            { "column": "automation3_description", "value": "={{ $json.blueprint.automations[2].description }}" },
+            { "column": "automation3_hoursSaved", "value": "={{ $json.blueprint.automations[2].hoursSavedPerWeek }}" },
+            { "column": "automation3_complexity", "value": "={{ $json.blueprint.automations[2].complexity }}" },
+            { "column": "quickWin", "value": "={{ $json.blueprint.quickWin }}" },
+            { "column": "highIntentTag", "value": "={{ $json.highIntentTag }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "google-sheets",
+      "name": "Save to Google Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [1050, 200],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Google Sheets Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendOptions": {},
+        "options": {},
+        "fromEmail": "={{ $env.FROM_EMAIL }}",
+        "toEmail": "={{ $json.email }}",
+        "subject": "Your Automation Blueprint — {{ $json.businessName || 'your business' }}",
+        "text": "Your Business Automation Blueprint\\nPrepared for {{ $json.firstName }} · {{ new Date().toLocaleDateString() }}\\n\\n{{ $json.blueprint.intro }}\\n\\n────────────────────────────────\\n\\nAUTOMATION 1 — {{ $json.blueprint.automations[0].name }}\\n⏱ {{ $json.blueprint.automations[0].hoursSavedPerWeek }}/week  {{ $json.blueprint.automations[0].complexity }}\\n{{ $json.blueprint.automations[0].description }}\\nHow it works: {{ $json.blueprint.automations[0].howItWorks }}\\n\\n────────────────────────────────\\n\\nAUTOMATION 2 — {{ $json.blueprint.automations[1].name }}\\n⏱ {{ $json.blueprint.automations[1].hoursSavedPerWeek }}/week  {{ $json.blueprint.automations[1].complexity }}\\n{{ $json.blueprint.automations[1].description }}\\nHow it works: {{ $json.blueprint.automations[1].howItWorks }}\\n\\n────────────────────────────────\\n\\nAUTOMATION 3 — {{ $json.blueprint.automations[2].name }}\\n⏱ {{ $json.blueprint.automations[2].hoursSavedPerWeek }}/week  {{ $json.blueprint.automations[2].complexity }}\\n{{ $json.blueprint.automations[2].description }}\\nHow it works: {{ $json.blueprint.automations[2].howItWorks }}\\n\\n────────────────────────────────\\n\\nYOUR QUICK WIN THIS WEEK\\n{{ $json.blueprint.quickWin }}\\n\\n────────────────────────────────\\n\\n{{ $json.blueprint.closingLine }}\\n\\nWant to see how this actually gets built for your business?\\nI do a free 20-minute call where we map one automation end-to-end —\\nno pitch, just the plan.\\n\\nBook a 20-Minute Chat → https://calendly.com/YOUR_LINK\\n\\n────────────────────────────────\\nAndré · Hinterland Web · hinterlandweb.com\\nSunshine Coast, Australia",
+        "html": "<!DOCTYPE html>\n<html>\n<head>\n  <meta charset='utf-8'>\n  <meta name='viewport' content='width=device-width, initial-scale=1.0'>\n  <title>Your Automation Blueprint</title>\n</head>\n<body style='font-family: Raleway, Arial, sans-serif; line-height: 1.6; color: #143144; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #D8E5CF;'>\n  <div style='background-color: white; border-radius: 16px; padding: 40px; box-shadow: 0 4px 20px rgba(20, 49, 68, 0.1);'>\n    <h1 style='color: #143144; font-size: 28px; margin-bottom: 8px;'>Your Business Automation Blueprint</h1>\n    <p style='color: #42B3E8; font-size: 14px; margin-bottom: 30px;'>Prepared for {{ $json.firstName }} · {{ new Date().toLocaleDateString('en-AU') }}</p>\n    \n    <p style='font-size: 16px; margin-bottom: 30px;'>{{ $json.blueprint.intro }}</p>\n    \n    <hr style='border: none; border-top: 1px solid #143144; margin: 30px 0; opacity: 0.2;'>\n    \n    <div style='margin-bottom: 30px;'>\n      <div style='display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px;'>\n        <h3 style='color: #42B3E8; font-size: 18px; margin: 0;'>AUTOMATION 1 — {{ $json.blueprint.automations[0].name }}</h3>\n        <span style='font-size: 13px; color: #666;'>⏱ {{ $json.blueprint.automations[0].hoursSavedPerWeek }}/week</span>\n      </div>\n      <p style='margin: 0 0 10px 0;'>{{ $json.blueprint.automations[0].description }}</p>\n      <p style='margin: 0; font-size: 13px; color: #666;'><strong>Complexity:</strong> {{ $json.blueprint.automations[0].complexity }}</p>\n      <p style='margin: 5px 0 0 0; font-size: 13px; color: #666;'><strong>How it works:</strong> {{ $json.blueprint.automations[0].howItWorks }}</p>\n    </div>\n    \n    <hr style='border: none; border-top: 1px solid #143144; margin: 30px 0; opacity: 0.2;'>\n    \n    <div style='margin-bottom: 30px;'>\n      <div style='display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px;'>\n        <h3 style='color: #42B3E8; font-size: 18px; margin: 0;'>AUTOMATION 2 — {{ $json.blueprint.automations[1].name }}</h3>\n        <span style='font-size: 13px; color: #666;'>⏱ {{ $json.blueprint.automations[1].hoursSavedPerWeek }}/week</span>\n      </div>\n      <p style='margin: 0 0 10px 0;'>{{ $json.blueprint.automations[1].description }}</p>\n      <p style='margin: 0; font-size: 13px; color: #666;'><strong>Complexity:</strong> {{ $json.blueprint.automations[1].complexity }}</p>\n      <p style='margin: 5px 0 0 0; font-size: 13px; color: #666;'><strong>How it works:</strong> {{ $json.blueprint.automations[1].howItWorks }}</p>\n    </div>\n    \n    <hr style='border: none; border-top: 1px solid #143144; margin: 30px 0; opacity: 0.2;'>\n    \n    <div style='margin-bottom: 30px;'>\n      <div style='display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px;'>\n        <h3 style='color: #42B3E8; font-size: 18px; margin: 0;'>AUTOMATION 3 — {{ $json.blueprint.automations[2].name }}</h3>\n        <span style='font-size: 13px; color: #666;'>⏱ {{ $json.blueprint.automations[2].hoursSavedPerWeek }}/week</span>\n      </div>\n      <p style='margin: 0 0 10px 0;'>{{ $json.blueprint.automations[2].description }}</p>\n      <p style='margin: 0; font-size: 13px; color: #666;'><strong>Complexity:</strong> {{ $json.blueprint.automations[2].complexity }}</p>\n      <p style='margin: 5px 0 0 0; font-size: 13px; color: #666;'><strong>How it works:</strong> {{ $json.blueprint.automations[2].howItWorks }}</p>\n    </div>\n    \n    <hr style='border: none; border-top: 1px solid #143144; margin: 30px 0; opacity: 0.2;'>\n    \n    <div style='background-color: #D8E5CF; padding: 20px; border-radius: 12px; margin-bottom: 30px;'>\n      <h3 style='color: #143144; font-size: 16px; margin: 0 0 10px 0;'>YOUR QUICK WIN THIS WEEK</h3>\n      <p style='margin: 0; font-size: 15px;'>{{ $json.blueprint.quickWin }}</p>\n    </div>\n    \n    <hr style='border: none; border-top: 1px solid #143144; margin: 30px 0; opacity: 0.2;'>\n    \n    <p style='font-size: 16px; margin-bottom: 30px;'>{{ $json.blueprint.closingLine }}</p>\n    \n    <div style='text-align: center; margin: 40px 0;'>\n      <p style='margin-bottom: 20px; font-size: 15px;'>Want to see how this actually gets built for your business?<br>\n      I do a free 20-minute call where we map one automation end-to-end —<br>\n      no pitch, just the plan.</p>\n      <a href='https://calendly.com/YOUR_LINK' style='background-color: #42B3E8; color: white; padding: 16px 32px; text-decoration: none; border-radius: 30px; font-weight: 600; display: inline-block;'>Book a 20-Minute Chat →</a>\n    </div>\n    \n    <hr style='border: none; border-top: 1px solid #143144; margin: 30px 0; opacity: 0.2;'>\n    \n    <p style='font-size: 13px; color: #666; text-align: center;'>\n      André · Hinterland Web · <a href='https://hinterlandweb.com' style='color: #42B3E8;'>hinterlandweb.com</a><br>\n      Sunshine Coast, Australia\n    </p>\n  </div>\n</body>\n</html>"
+      },
+      "id": "email-client",
+      "name": "Email Blueprint to Client",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2,
+      "position": [1050, 400],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Gmail Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prepare lead notification email for André\nconst subjectPrefix = $json.highIntentTag ? '[HIGH INTENT] ' : '';\nconst businessName = $json.businessName || 'Not provided';\n\nreturn [{\n  json: {\n    ...$json,\n    subjectPrefix,\n    businessNameDisplay: businessName\n  }\n}];"
+      },
+      "id": "prepare-andre-email",
+      "name": "Prepare André Email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1250, 200]
+    },
+    {
+      "parameters": {
+        "sendOptions": {},
+        "options": {},
+        "fromEmail": "={{ $env.FROM_EMAIL }}",
+        "toEmail": "andre@hinterlandweb.com",
+        "subject": "={{ $json.subjectPrefix }}New Blueprint lead — {{ $json.firstName }}, {{ $json.businessType }}",
+        "text": "NAME: {{ $json.firstName }}\nEMAIL: {{ $json.email }} — mailto:{{ $json.email }}\nBUSINESS: {{ $json.businessNameDisplay }}\nTYPE: {{ $json.businessType }}\nTEAM: {{ $json.teamSize }}\n\nBIGGEST TIME DRAIN: {{ $json.biggestTimeDrain }}\nREPEATED TASKS: {{ $json.repeatedTasks }}\nWEEKLY ADMIN: {{ $json.weeklyAdminHours }}\n5 HOURS BACK MEANS: {{ $json.fiveHoursMeaning }}\nTOOLS: {{ $json.tools }}\nTOOLS INTEGRATED: {{ $json.toolsIntegrated }}\nTRIED AUTOMATING: {{ $json.automationHistory }}\n\nHIGH INTENT: {{ $json.highIntentTag ? 'YES' : 'No' }}\n\nBLUEPRINT AUTOMATIONS:\n1. {{ $json.blueprint.automations[0].name }} ({{ $json.blueprint.automations[0].complexity }})\n2. {{ $json.blueprint.automations[1].name }} ({{ $json.blueprint.automations[1].complexity }})\n3. {{ $json.blueprint.automations[2].name }} ({{ $json.blueprint.automations[2].complexity }})\n\nBLUEPRINT SENT: {{ $json.blueprintSentAt }}",
+        "html": "<!DOCTYPE html>\n<html>\n<head>\n  <meta charset='utf-8'>\n  <meta name='viewport' content='width=device-width, initial-scale=1.0'>\n</head>\n<body style='font-family: Raleway, Arial, sans-serif; line-height: 1.6; color: #143144; max-width: 600px; margin: 0 auto; padding: 20px;'>\n  <h2 style='color: #143144; border-bottom: 2px solid #42B3E8; padding-bottom: 10px;'>LEAD DETAILS</h2>\n  <p><strong>Name:</strong> {{ $json.firstName }}</p>\n  <p><strong>Email:</strong> <a href='mailto:{{ $json.email }}' style='color: #42B3E8;'>{{ $json.email }}</a></p>\n  <p><strong>Business:</strong> {{ $json.businessNameDisplay }}</p>\n  <p><strong>Type:</strong> {{ $json.businessType }}</p>\n  <p><strong>Team:</strong> {{ $json.teamSize }}</p>\n  \n  <h2 style='color: #143144; border-bottom: 2px solid #42B3E8; padding-bottom: 10px; margin-top: 30px;'>ANSWERS</h2>\n  <p><strong>Biggest time drain:</strong> {{ $json.biggestTimeDrain }}</p>\n  <p><strong>Repeated tasks:</strong> {{ $json.repeatedTasks }}</p>\n  <p><strong>Weekly admin:</strong> {{ $json.weeklyAdminHours }}</p>\n  <p><strong>5 hours back means:</strong> {{ $json.fiveHoursMeaning }}</p>\n  <p><strong>Tools:</strong> {{ $json.tools }}</p>\n  <p><strong>Tools integrated:</strong> {{ $json.toolsIntegrated }}</p>\n  <p><strong>Tried automating:</strong> {{ $json.automationHistory }}</p>\n  \n  <h2 style='color: #143144; border-bottom: 2px solid #42B3E8; padding-bottom: 10px; margin-top: 30px;'>QUALIFICATION</h2>\n  <p style='background-color: {{ $json.highIntentTag ? '#4ADE80' : '#D1D5DB' }}; color: {{ $json.highIntentTag ? '#143144' : '#666' }}; padding: 10px; border-radius: 8px; display: inline-block;'>\n    <strong>High Intent:</strong> {{ $json.highIntentTag ? 'YES — Follow up!' : 'Standard' }}\n  </p>\n  \n  <h2 style='color: #143144; border-bottom: 2px solid #42B3E8; padding-bottom: 10px; margin-top: 30px;'>BLUEPRINT AUTOMATIONS</h2>\n  <ol>\n    <li><strong>{{ $json.blueprint.automations[0].name }}</strong> ({{ $json.blueprint.automations[0].complexity }})</li>\n    <li><strong>{{ $json.blueprint.automations[1].name }}</strong> ({{ $json.blueprint.automations[1].complexity }})</li>\n    <li><strong>{{ $json.blueprint.automations[2].name }}</strong> ({{ $json.blueprint.automations[2].complexity }})</li>\n  </ol>\n  \n  <p style='margin-top: 30px;'><strong>Blueprint sent:</strong> {{ $json.blueprintSentAt }}</p>\n  \n  <p style='margin-top: 30px;'>\n    <a href='mailto:{{ $json.email }}?subject=Re: Your Automation Blueprint' style='background-color: #42B3E8; color: white; padding: 12px 24px; text-decoration: none; border-radius: 24px; display: inline-block;'>Reply to {{ $json.firstName }}</a>\n  </p>\n</body>\n</html>"
+      },
+      "id": "email-andre",
+      "name": "Email Lead to André",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2,
+      "position": [1450, 200],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Gmail Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\"success\": true}",
+        "statusCode": 200,
+        "headers": {
+          "headers": []
+        }
+      },
+      "id": "success-response",
+      "name": "Success Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1650, 200]
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Prepare Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Data": {
+      "main": [
+        [
+          {
+            "node": "Claude AI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude AI": {
+      "main": [
+        [
+          {
+            "node": "Parse Claude Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Claude Response": {
+      "main": [
+        [
+          {
+            "node": "Save to Google Sheet",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Email Blueprint to Client",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save to Google Sheet": {
+      "main": [
+        [
+          {
+            "node": "Prepare André Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare André Email": {
+      "main": [
+        [
+          {
+            "node": "Email Lead to André",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email Lead to André": {
+      "main": [
+        [
+          {
+            "node": "Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": []
+}

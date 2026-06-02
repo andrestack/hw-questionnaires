@@ -1,0 +1,213 @@
+{
+  "name": "AIOS Pre-Audit - Submission Handler",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "aios-form",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "webhookId": "aios-form"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Verify webhook secret if configured\nconst secret = $env.N8N_WEBHOOK_SECRET;\nif (secret) {\n  const receivedSecret = $input.headers['x-webhook-secret'];\n  if (receivedSecret !== secret) {\n    return [{ json: { error: 'Unauthorized' } }];\n  }\n}\n\n// Extract body data\nconst body = $input.body;\n\n// Tech comfort mapping for display\nconst techComfortMap = {\n  '1': '1 — I avoid it where I can',\n  '2': '2 — I use what I have to',\n  '3': '3 — Comfortable with everyday tools',\n  '4': '4 — I enjoy learning new tools',\n  '5': '5 — I love technology and adopt it early'\n};\n\nconst techComfortLabel = techComfortMap[body.techComfort?.charAt(0)] || body.techComfort;\n\nreturn [{\n  json: {\n    ...body,\n    techComfortLabel\n  }\n}];"
+      },
+      "id": "prepare-data",
+      "name": "Prepare Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": "={{ $env.GOOGLE_SHEET_ID }}",
+        "sheetName": "AIOS",
+        "columns": {
+          "columns": [
+            { "column": "submittedAt", "value": "={{ $json.submittedAt }}" },
+            { "column": "businessName", "value": "={{ $json.businessName }}" },
+            { "column": "businessDescription", "value": "={{ $json.businessDescription }}" },
+            { "column": "teamSize", "value": "={{ $json.teamSize }}" },
+            { "column": "clientJourney", "value": "={{ $json.clientJourney }}" },
+            { "column": "timeSink", "value": "={{ $json.timeSink }}" },
+            { "column": "adminHours", "value": "={{ $json.adminHours }}" },
+            { "column": "clientCommunication", "value": "={{ $json.clientCommunication }}" },
+            { "column": "proposalsQuotes", "value": "={{ $json.proposalsQuotes }}" },
+            { "column": "invoicing", "value": "={{ $json.invoicing }}" },
+            { "column": "jobManagement", "value": "={{ $json.jobManagement }}" },
+            { "column": "scheduling", "value": "={{ $json.scheduling }}" },
+            { "column": "fileStorage", "value": "={{ $json.fileStorage }}" },
+            { "column": "otherTools", "value": "={{ $json.otherTools }}" },
+            { "column": "toolFrustrations", "value": "={{ $json.toolFrustrations }}" },
+            { "column": "automationAttempts", "value": "={{ $json.automationAttempts }}" },
+            { "column": "topFrustrations", "value": "={{ $json.topFrustrations }}" },
+            { "column": "fixOvernight", "value": "={{ $json.fixOvernight }}" },
+            { "column": "repetitiveTasks", "value": "={{ $json.repetitiveTasks }}" },
+            { "column": "techComfort", "value": "={{ $json.techComfort }}" },
+            { "column": "successOutcome", "value": "={{ $json.successOutcome }}" },
+            { "column": "anythingElse", "value": "={{ $json.anythingElse }}" },
+            { "column": "fullName", "value": "={{ $json.fullName }}" },
+            { "column": "email", "value": "={{ $json.email }}" },
+            { "column": "phone", "value": "={{ $json.phone }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "google-sheets",
+      "name": "Save to Google Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [650, 200],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Google Sheets Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendOptions": {},
+        "options": {},
+        "fromEmail": "={{ $env.FROM_EMAIL }}",
+        "toEmail": "={{ $json.email }}",
+        "subject": "Got your brief — I'll come prepared",
+        "text": "Hi {{ $json.fullName }},\n\nThanks for taking the time to fill that out — I know it's not nothing.\n\nI'll read through your answers before we meet and come with specific questions and ideas rather than starting from scratch. That's the point of this — our time together will be more useful because of it.\n\nIf anything changes or you want to add something, just reply to this email.\n\nSee you soon,\nAndré\nHinterland Web\nandre@hinterlandweb.com",
+        "html": "<!DOCTYPE html>\n<html>\n<head>\n  <meta charset='utf-8'>\n  <meta name='viewport' content='width=device-width, initial-scale=1.0'>\n</head>\n<body style='font-family: Raleway, Arial, sans-serif; line-height: 1.6; color: #143144; max-width: 600px; margin: 0 auto; padding: 20px;'>\n  <p>Hi {{ $json.fullName }},</p>\n  \n  <p>Thanks for taking the time to fill that out — I know it's not nothing.</p>\n  \n  <p>I'll read through your answers before we meet and come with specific questions and ideas rather than starting from scratch. That's the point of this — our time together will be more useful because of it.</p>\n  \n  <p>If anything changes or you want to add something, just reply to this email.</p>\n  \n  <p>See you soon,<br>\n  André<br>\n  Hinterland Web<br>\n  <a href='mailto:andre@hinterlandweb.com' style='color: #42B3E8;'>andre@hinterlandweb.com</a></p>\n</body>\n</html>"
+      },
+      "id": "email-client",
+      "name": "Email Client",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2,
+      "position": [650, 400],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Gmail Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prepare email content for André\nconst phone = $json.phone || 'Not provided';\nconst anythingElse = $json.anythingElse || 'Nothing else shared';\nconst toolFrustrations = $json.toolFrustrations || 'No frustrations mentioned';\nconst automationAttempts = $json.automationAttempts || 'No previous attempts';\n\nreturn [{\n  json: {\n    ...$json,\n    phone,\n    anythingElse,\n    toolFrustrations,\n    automationAttempts\n  }\n}];"
+      },
+      "id": "prepare-andre-email",
+      "name": "Prepare André Email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [850, 200]
+    },
+    {
+      "parameters": {
+        "sendOptions": {},
+        "options": {},
+        "fromEmail": "={{ $env.FROM_EMAIL }}",
+        "toEmail": "andre@hinterlandweb.com",
+        "subject": "AIOS pre-audit brief — {{ $json.fullName }}, {{ $json.businessName }}",
+        "text": "BUSINESS\nName: {{ $json.businessName }}\nWhat they do: {{ $json.businessDescription }}\nTeam size: {{ $json.teamSize }}\n\nHOW THEY WORK\nClient journey: {{ $json.clientJourney }}\nBiggest time sink: {{ $json.timeSink }}\nWeekly admin hours: {{ $json.adminHours }}\n\nTOOLS\nEmail/comms: {{ $json.clientCommunication }}\nQuotes/proposals: {{ $json.proposalsQuotes || 'Not specified' }}\nInvoicing: {{ $json.invoicing || 'Not specified' }}\nJob management: {{ $json.jobManagement || 'Not specified' }}\nScheduling: {{ $json.scheduling || 'Not specified' }}\nFile storage: {{ $json.fileStorage || 'Not specified' }}\nOther: {{ $json.otherTools || 'None' }}\nTool frustrations: {{ $json.toolFrustrations }}\nAlready automated: {{ $json.automationAttempts }}\n\nWHAT'S BROKEN\nTop 3 frustrations: {{ $json.topFrustrations }}\nFix one thing overnight: {{ $json.fixOvernight }}\nRepetitive tasks: {{ $json.repetitiveTasks }}\n\nLOOKING FORWARD\nTech comfort: {{ $json.techComfortLabel }}\nSuccess looks like: {{ $json.successOutcome }}\nAnything else: {{ $json.anythingElse }}\n\nCONTACT\nName: {{ $json.fullName }}\nEmail: {{ $json.email }}\nPhone: {{ $json.phone }}\n\nReply: mailto:{{ $json.email }}?subject=Re: AIOS pre-audit — {{ $json.businessName }}",
+        "html": "<!DOCTYPE html>\n<html>\n<head>\n  <meta charset='utf-8'>\n  <meta name='viewport' content='width=device-width, initial-scale=1.0'>\n</head>\n<body style='font-family: Raleway, Arial, sans-serif; line-height: 1.6; color: #143144; max-width: 600px; margin: 0 auto; padding: 20px;'>\n  <h2 style='color: #143144; border-bottom: 2px solid #42B3E8; padding-bottom: 10px;'>BUSINESS</h2>\n  <p><strong>Name:</strong> {{ $json.businessName }}</p>\n  <p><strong>What they do:</strong> {{ $json.businessDescription }}</p>\n  <p><strong>Team size:</strong> {{ $json.teamSize }}</p>\n  \n  <h2 style='color: #143144; border-bottom: 2px solid #42B3E8; padding-bottom: 10px; margin-top: 30px;'>HOW THEY WORK</h2>\n  <p><strong>Client journey:</strong> {{ $json.clientJourney }}</p>\n  <p><strong>Biggest time sink:</strong> {{ $json.timeSink }}</p>\n  <p><strong>Weekly admin hours:</strong> {{ $json.adminHours }}</p>\n  \n  <h2 style='color: #143144; border-bottom: 2px solid #42B3E8; padding-bottom: 10px; margin-top: 30px;'>TOOLS</h2>\n  <p><strong>Email/comms:</strong> {{ $json.clientCommunication }}</p>\n  <p><strong>Quotes/proposals:</strong> {{ $json.proposalsQuotes || 'Not specified' }}</p>\n  <p><strong>Invoicing:</strong> {{ $json.invoicing || 'Not specified' }}</p>\n  <p><strong>Job management:</strong> {{ $json.jobManagement || 'Not specified' }}</p>\n  <p><strong>Scheduling:</strong> {{ $json.scheduling || 'Not specified' }}</p>\n  <p><strong>File storage:</strong> {{ $json.fileStorage || 'Not specified' }}</p>\n  <p><strong>Other:</strong> {{ $json.otherTools || 'None' }}</p>\n  <p><strong>Tool frustrations:</strong> {{ $json.toolFrustrations }}</p>\n  <p><strong>Already automated:</strong> {{ $json.automationAttempts }}</p>\n  \n  <h2 style='color: #143144; border-bottom: 2px solid #42B3E8; padding-bottom: 10px; margin-top: 30px;'>WHAT'S BROKEN</h2>\n  <p><strong>Top 3 frustrations:</strong> {{ $json.topFrustrations }}</p>\n  <p><strong>Fix one thing overnight:</strong> {{ $json.fixOvernight }}</p>\n  <p><strong>Repetitive tasks:</strong> {{ $json.repetitiveTasks }}</p>\n  \n  <h2 style='color: #143144; border-bottom: 2px solid #42B3E8; padding-bottom: 10px; margin-top: 30px;'>LOOKING FORWARD</h2>\n  <p><strong>Tech comfort:</strong> {{ $json.techComfortLabel }}</p>\n  <p><strong>Success looks like:</strong> {{ $json.successOutcome }}</p>\n  <p><strong>Anything else:</strong> {{ $json.anythingElse }}</p>\n  \n  <h2 style='color: #143144; border-bottom: 2px solid #42B3E8; padding-bottom: 10px; margin-top: 30px;'>CONTACT</h2>\n  <p><strong>Name:</strong> {{ $json.fullName }}</p>\n  <p><strong>Email:</strong> <a href='mailto:{{ $json.email }}' style='color: #42B3E8;'>{{ $json.email }}</a></p>\n  <p><strong>Phone:</strong> {{ $json.phone }}</p>\n  \n  <p style='margin-top: 30px;'>\n    <a href='mailto:{{ $json.email }}?subject=Re: AIOS pre-audit — {{ $json.businessName }}' style='background-color: #42B3E8; color: white; padding: 12px 24px; text-decoration: none; border-radius: 24px; display: inline-block;'>Reply to {{ $json.fullName }}</a>\n  </p>\n</body>\n</html>"
+      },
+      "id": "email-andre",
+      "name": "Email André",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2,
+      "position": [1050, 200],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Gmail Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\"success\": true}",
+        "statusCode": 200,
+        "headers": {
+          "headers": []
+        }
+      },
+      "id": "success-response",
+      "name": "Success Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1250, 200]
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Prepare Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Data": {
+      "main": [
+        [
+          {
+            "node": "Save to Google Sheet",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Email Client",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save to Google Sheet": {
+      "main": [
+        [
+          {
+            "node": "Prepare André Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare André Email": {
+      "main": [
+        [
+          {
+            "node": "Email André",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email André": {
+      "main": [
+        [
+          {
+            "node": "Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": []
+}

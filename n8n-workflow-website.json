@@ -1,0 +1,208 @@
+{
+  "name": "Website Questionnaire - Submission Handler",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "website-form",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "webhookId": "website-form"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Verify webhook secret if configured\nconst secret = $env.N8N_WEBHOOK_SECRET;\nif (secret) {\n  const receivedSecret = $input.headers['x-webhook-secret'];\n  if (receivedSecret !== secret) {\n    return [{ json: { error: 'Unauthorized' } }];\n  }\n}\n\n// Extract body data\nconst body = $input.body;\n\n// Convert arrays to comma-separated strings for Google Sheets\nconst formatArray = (arr) => {\n  if (!arr || !Array.isArray(arr)) return '';\n  return arr.join(', ');\n};\n\n// Determine qualification tag based on budget\nlet qualificationTag = '';\nif (body.budget === 'Under $3,000') {\n  qualificationTag = 'low-budget';\n}\n\nreturn [{\n  json: {\n    ...body,\n    desiredFeelings: formatArray(body.desiredFeelings),\n    styleWords: formatArray(body.styleWords),\n    neededPages: formatArray(body.neededPages),\n    qualificationTag\n  }\n}];"
+      },
+      "id": "prepare-data",
+      "name": "Prepare Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": "={{ $env.GOOGLE_SHEET_ID }}",
+        "sheetName": "Website",
+        "columns": {
+          "columns": [
+            { "column": "submittedAt", "value": "={{ $json.submittedAt }}" },
+            { "column": "businessName", "value": "={{ $json.businessName }}" },
+            { "column": "businessDescription", "value": "={{ $json.businessDescription }}" },
+            { "column": "currentWebsite", "value": "={{ $json.currentWebsite }}" },
+            { "column": "primaryGoal", "value": "={{ $json.primaryGoal }}" },
+            { "column": "desiredFeelings", "value": "={{ $json.desiredFeelings }}" },
+            { "column": "turnOffs", "value": "={{ $json.turnOffs }}" },
+            { "column": "likedWebsites", "value": "={{ $json.likedWebsites }}" },
+            { "column": "styleWords", "value": "={{ $json.styleWords }}" },
+            { "column": "avoid", "value": "={{ $json.avoid }}" },
+            { "column": "neededPages", "value": "={{ $json.neededPages }}" },
+            { "column": "brandingStatus", "value": "={{ $json.brandingStatus }}" },
+            { "column": "photoStatus", "value": "={{ $json.photoStatus }}" },
+            { "column": "budget", "value": "={{ $json.budget }}" },
+            { "column": "timeline", "value": "={{ $json.timeline }}" },
+            { "column": "additionalInfo", "value": "={{ $json.additionalInfo }}" },
+            { "column": "name", "value": "={{ $json.name }}" },
+            { "column": "email", "value": "={{ $json.email }}" },
+            { "column": "phone", "value": "={{ $json.phone }}" },
+            { "column": "qualificationTag", "value": "={{ $json.qualificationTag }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "google-sheets",
+      "name": "Save to Google Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [650, 200],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Google Sheets Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendOptions": {},
+        "options": {},
+        "fromEmail": "={{ $env.FROM_EMAIL }}",
+        "toEmail": "={{ $json.email }}",
+        "subject": "Got your brief — I'll be in touch soon",
+        "text": "Hi {{ $json.name }},\n\nThanks for taking the time to fill that out — it genuinely helps.\n\nI've received your brief for {{ $json.businessName }} and will review it within 1 business day. If anything's urgent, you can reach me directly at andre@hinterlandweb.com.\n\nTalk soon,\nAndré\nHinterland Web",
+        "html": "<!DOCTYPE html>\n<html>\n<head>\n  <meta charset='utf-8'>\n  <meta name='viewport' content='width=device-width, initial-scale=1.0'>\n</head>\n<body style='font-family: Raleway, Arial, sans-serif; line-height: 1.6; color: #143144; max-width: 600px; margin: 0 auto; padding: 20px;'>\n  <p>Hi {{ $json.name }},</p>\n  \n  <p>Thanks for taking the time to fill that out — it genuinely helps.</p>\n  \n  <p>I've received your brief for <strong>{{ $json.businessName }}</strong> and will review it within 1 business day. If anything's urgent, you can reach me directly at <a href='mailto:andre@hinterlandweb.com' style='color: #42B3E8;'>andre@hinterlandweb.com</a>.</p>\n  \n  <p>Talk soon,<br>\n  André<br>\n  Hinterland Web</p>\n</body>\n</html>"
+      },
+      "id": "email-client",
+      "name": "Email Client",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2,
+      "position": [650, 400],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Gmail Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build the low-budget email subject prefix\nconst subjectPrefix = $json.qualificationTag === 'low-budget' ? '[LOW BUDGET] ' : '';\n\n// Format fields for André's email\nconst budget = $json.budget || 'Not specified';\nconst timeline = $json.timeline || 'Not specified';\nconst phone = $json.phone || 'Not provided';\n\nreturn [{\n  json: {\n    ...$json,\n    subjectPrefix,\n    budget,\n    timeline,\n    phone\n  }\n}];"
+      },
+      "id": "prepare-andre-email",
+      "name": "Prepare André Email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [850, 200]
+    },
+    {
+      "parameters": {
+        "sendOptions": {},
+        "options": {},
+        "fromEmail": "={{ $env.FROM_EMAIL }}",
+        "toEmail": "andre@hinterlandweb.com",
+        "subject": "={{ $json.subjectPrefix }}New website brief — {{ $json.businessName }}",
+        "text": "BUSINESS\nName: {{ $json.businessName }}\nWhat they do: {{ $json.businessDescription }}\nCurrent website: {{ $json.currentWebsite || 'None' }}\n\nGOALS\nPrimary goal: {{ $json.primaryGoal }}\nDesired feelings: {{ $json.desiredFeelings }}\nTurn-offs: {{ $json.turnOffs || 'None specified' }}\n\nLOOK & FEEL\nLiked websites: {{ $json.likedWebsites }}\nStyle words: {{ $json.styleWords }}\nAvoid: {{ $json.avoid || 'None specified' }}\n\nCONTENT\nPages needed: {{ $json.neededPages }}\nBranding: {{ $json.brandingStatus }}\nPhotos: {{ $json.photoStatus }}\n\nPRACTICALITIES\nBudget: {{ $json.budget }}\nTimeline: {{ $json.timeline }}\nAdditional info: {{ $json.additionalInfo || 'None' }}\n\nCONTACT\nName: {{ $json.name }}\nEmail: {{ $json.email }}\nPhone: {{ $json.phone }}\n\nReply: mailto:{{ $json.email }}?subject=Re: Your website brief for {{ $json.businessName }}",
+        "html": "<!DOCTYPE html>\n<html>\n<head>\n  <meta charset='utf-8'>\n  <meta name='viewport' content='width=device-width, initial-scale=1.0'>\n</head>\n<body style='font-family: Raleway, Arial, sans-serif; line-height: 1.6; color: #143144; max-width: 600px; margin: 0 auto; padding: 20px;'>\n  <h2 style='color: #143144; border-bottom: 2px solid #42B3E8; padding-bottom: 10px;'>BUSINESS</h2>\n  <p><strong>Name:</strong> {{ $json.businessName }}</p>\n  <p><strong>What they do:</strong> {{ $json.businessDescription }}</p>\n  <p><strong>Current website:</strong> {{ $json.currentWebsite || 'None' }}</p>\n  \n  <h2 style='color: #143144; border-bottom: 2px solid #42B3E8; padding-bottom: 10px; margin-top: 30px;'>GOALS</h2>\n  <p><strong>Primary goal:</strong> {{ $json.primaryGoal }}</p>\n  <p><strong>Desired feelings:</strong> {{ $json.desiredFeelings }}</p>\n  <p><strong>Turn-offs:</strong> {{ $json.turnOffs || 'None specified' }}</p>\n  \n  <h2 style='color: #143144; border-bottom: 2px solid #42B3E8; padding-bottom: 10px; margin-top: 30px;'>LOOK & FEEL</h2>\n  <p><strong>Liked websites:</strong> {{ $json.likedWebsites }}</p>\n  <p><strong>Style words:</strong> {{ $json.styleWords }}</p>\n  <p><strong>Avoid:</strong> {{ $json.avoid || 'None specified' }}</p>\n  \n  <h2 style='color: #143144; border-bottom: 2px solid #42B3E8; padding-bottom: 10px; margin-top: 30px;'>CONTENT</h2>\n  <p><strong>Pages needed:</strong> {{ $json.neededPages }}</p>\n  <p><strong>Branding:</strong> {{ $json.brandingStatus }}</p>\n  <p><strong>Photos:</strong> {{ $json.photoStatus }}</p>\n  \n  <h2 style='color: #143144; border-bottom: 2px solid #42B3E8; padding-bottom: 10px; margin-top: 30px;'>PRACTICALITIES</h2>\n  <p><strong>Budget:</strong> {{ $json.budget }}</p>\n  <p><strong>Timeline:</strong> {{ $json.timeline }}</p>\n  <p><strong>Additional info:</strong> {{ $json.additionalInfo || 'None' }}</p>\n  \n  <h2 style='color: #143144; border-bottom: 2px solid #42B3E8; padding-bottom: 10px; margin-top: 30px;'>CONTACT</h2>\n  <p><strong>Name:</strong> {{ $json.name }}</p>\n  <p><strong>Email:</strong> <a href='mailto:{{ $json.email }}' style='color: #42B3E8;'>{{ $json.email }}</a></p>\n  <p><strong>Phone:</strong> {{ $json.phone }}</p>\n  \n  <p style='margin-top: 30px;'>\n    <a href='mailto:{{ $json.email }}?subject=Re: Your website brief for {{ $json.businessName }}' style='background-color: #42B3E8; color: white; padding: 12px 24px; text-decoration: none; border-radius: 24px; display: inline-block;'>Reply to {{ $json.name }}</a>\n  </p>\n</body>\n</html>"
+      },
+      "id": "email-andre",
+      "name": "Email André",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2,
+      "position": [1050, 200],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Gmail Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\"success\": true}",
+        "statusCode": 200,
+        "headers": {
+          "headers": []
+        }
+      },
+      "id": "success-response",
+      "name": "Success Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1250, 200]
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Prepare Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Data": {
+      "main": [
+        [
+          {
+            "node": "Save to Google Sheet",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Email Client",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save to Google Sheet": {
+      "main": [
+        [
+          {
+            "node": "Prepare André Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare André Email": {
+      "main": [
+        [
+          {
+            "node": "Email André",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email André": {
+      "main": [
+        [
+          {
+            "node": "Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": []
+}
