@@ -1,6 +1,7 @@
 "use client";
 
 import { CheckCircle2 } from "lucide-react";
+import Image from "next/image";
 
 interface ConfirmationScreenProps {
   name: string;
@@ -19,6 +20,16 @@ export function ConfirmationScreen({ name, message }: ConfirmationScreenProps) {
           Thanks {name}
         </h2>
         <p className="max-w-md text-body-text">{message}</p>
+      </div>
+      <div className="pt-4">
+        <Image
+          src="/logo_new.png"
+          alt="Hinterland Web"
+          width={160}
+          height={48}
+          className="h-auto w-40"
+          priority
+        />
       </div>
     </div>
   );
