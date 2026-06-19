@@ -118,7 +118,7 @@ const cards: CardConfig[] = [
         label: "Rough budget range",
         type: "radio",
         required: true,
-        options: ["Under $3,000", "$3,000–$5,000", "$5,000–$8,000", "$8,000+", "Not sure yet"],
+        options: ["Under $1,800", "$1,800–$3,000", "$3,000–$5,000", "$5,000+", "Not sure yet"],
       },
       {
         name: "timeline",
